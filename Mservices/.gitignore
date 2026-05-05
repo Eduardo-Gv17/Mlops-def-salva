@@ -1,0 +1,55 @@
+# ── Secretos ──
+.env
+*.env
+!.env.example
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# ── Java / Maven ──
+target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+*.iml
+.idea/
+.classpath
+.project
+.settings/
+
+# ── Node.js ──
+node_modules/
+npm-debug.log*
+yarn-error.log
+.npm
+.yarn-integrity
+
+# ── Docker ──
+.docker/
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── Logs ──
+*.log
+logs/

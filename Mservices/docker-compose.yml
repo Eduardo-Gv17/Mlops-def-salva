@@ -1,0 +1,181 @@
+version: "3.9"
+
+# ════════════════════════════════════════════════════
+#  docker-compose.yml  —  Desarrollo LOCAL
+#  Orquesta 5 microservicios + 3 bases de datos
+#  Uso: docker compose up -d --build
+# ════════════════════════════════════════════════════
+
+networks:
+  mlops-network:
+    driver: bridge
+
+volumes:
+  features-db-data:
+  models-db-data:
+  predlogs-db-data:
+
+services:
+
+  # ── Base de datos Ms1: PostgreSQL ─────────────────
+  features-db:
+    image: postgres:15-alpine
+    container_name: features-db
+    environment:
+      POSTGRES_DB: ${FEATURES_DB_NAME:-features_db}
+      POSTGRES_USER: ${FEATURES_DB_USER:-mlops_user}
+      POSTGRES_PASSWORD: ${FEATURES_DB_PASSWORD:-mlops_pass}
+    volumes:
+      - features-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FEATURES_DB_USER:-mlops_user} -d ${FEATURES_DB_NAME:-features_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Base de datos Ms2: MySQL ──────────────────────
+  models-db:
+    image: mysql:8.0
+    container_name: models-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MODELS_DB_ROOT_PASSWORD:-root_secret}
+      MYSQL_DATABASE: ${MODELS_DB_NAME:-models_db}
+      MYSQL_USER: ${MODELS_DB_USER:-mlops_user}
+      MYSQL_PASSWORD: ${MODELS_DB_PASSWORD:-mlops_pass}
+    volumes:
+      - models-db-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MODELS_DB_USER:-mlops_user}", "-p${MODELS_DB_PASSWORD:-mlops_pass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Base de datos Ms3: MongoDB ────────────────────
+  predlogs-db:
+    image: mongo:6.0
+    container_name: predlogs-db
+    environment:
+      MONGO_INITDB_DATABASE: ${PREDLOGS_DB_NAME:-predlogs_db}
+    volumes:
+      - predlogs-db-data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Ms1: Features (Python + FastAPI) ─────────────
+  ms1-features:
+    build: ./Ms1-features
+    container_name: ms1-features
+    env_file: .env
+    environment:
+      FEATURES_DB_HOST: features-db
+    ports:
+      - "8001:8001"
+    networks:
+      - mlops-network
+    depends_on:
+      features-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Ms2: Models (Java + Spring Boot) ─────────────
+  ms2-models:
+    build: ./Ms2-models
+    container_name: ms2-models
+    env_file: .env
+    environment:
+      MODELS_DB_HOST: models-db
+    ports:
+      - "8002:8002"
+    networks:
+      - mlops-network
+    depends_on:
+      models-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/actuator/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Ms3: PredLogs (Node.js + Express) ────────────
+  ms3-predlogs:
+    build: ./Ms3-predlogs
+    container_name: ms3-predlogs
+    env_file: .env
+    environment:
+      PREDLOGS_DB_HOST: predlogs-db
+    ports:
+      - "8003:8003"
+    networks:
+      - mlops-network
+    depends_on:
+      predlogs-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Ms4: Gateway (Python + FastAPI) ──────────────
+  ms4-gateway:
+    build: ./Ms4-gateway
+    container_name: ms4-gateway
+    env_file: .env
+    environment:
+      MODELS_SERVICE_URL: http://ms2-models:8002
+      PREDLOGS_SERVICE_URL: http://ms3-predlogs:8003
+    ports:
+      - "8004:8004"
+    networks:
+      - mlops-network
+    depends_on:
+      - ms2-models
+      - ms3-predlogs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Ms5: Monitoring (Python + FastAPI + Athena) ───
+  ms5-monitoring:
+    build: ./Ms5-Monitoring
+    container_name: ms5-monitoring
+    env_file: .env
+    ports:
+      - "8005:8005"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

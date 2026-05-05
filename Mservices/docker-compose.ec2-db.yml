@@ -1,0 +1,80 @@
+version: "3.9"
+
+# ════════════════════════════════════════════════════
+#  docker-compose.ec2-db.yml  —  MV3 (mlops-db-mv3)
+#  Solo las 3 bases de datos. Las apps están en MV1/MV2.
+#  Uso: docker compose -f docker-compose.ec2-db.yml up -d
+# ════════════════════════════════════════════════════
+
+networks:
+  mlops-db-network:
+    driver: bridge
+
+volumes:
+  features-db-data:
+  models-db-data:
+  predlogs-db-data:
+
+services:
+
+  # ── PostgreSQL (Ms1-features) ─────────────────────
+  features-db:
+    image: postgres:15-alpine
+    container_name: features-db
+    environment:
+      POSTGRES_DB: ${FEATURES_DB_NAME}
+      POSTGRES_USER: ${FEATURES_DB_USER}
+      POSTGRES_PASSWORD: ${FEATURES_DB_PASSWORD}
+    volumes:
+      - features-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"        # accesible solo desde el SG de MV1/MV2
+    networks:
+      - mlops-db-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FEATURES_DB_USER} -d ${FEATURES_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── MySQL (Ms2-models) ────────────────────────────
+  models-db:
+    image: mysql:8.0
+    container_name: models-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MODELS_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MODELS_DB_NAME}
+      MYSQL_USER: ${MODELS_DB_USER}
+      MYSQL_PASSWORD: ${MODELS_DB_PASSWORD}
+    volumes:
+      - models-db-data:/var/lib/mysql
+    ports:
+      - "3306:3306"        # accesible solo desde el SG de MV1/MV2
+    networks:
+      - mlops-db-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MODELS_DB_USER}", "-p${MODELS_DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── MongoDB (Ms3-predlogs) ────────────────────────
+  predlogs-db:
+    image: mongo:6.0
+    container_name: predlogs-db
+    environment:
+      MONGO_INITDB_DATABASE: ${PREDLOGS_DB_NAME}
+    volumes:
+      - predlogs-db-data:/data/db
+    ports:
+      - "27017:27017"      # accesible solo desde el SG de MV1/MV2
+    networks:
+      - mlops-db-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped

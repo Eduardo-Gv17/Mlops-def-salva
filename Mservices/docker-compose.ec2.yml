@@ -1,0 +1,96 @@
+version: "3.9"
+
+# ════════════════════════════════════════════════════
+#  docker-compose.ec2.yml  —  MV1 y MV2 (apps)
+#  Los 5 microservicios apuntan a MV3 para las BDs.
+#  Uso: docker compose -f docker-compose.ec2.yml up -d --build
+# ════════════════════════════════════════════════════
+
+networks:
+  mlops-network:
+    driver: bridge
+
+services:
+
+  # ── Ms1: Features (Python + FastAPI) ─────────────
+  ms1-features:
+    build: ./Ms1-features
+    container_name: ms1-features
+    env_file: .env
+    ports:
+      - "8001:8001"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Ms2: Models (Java + Spring Boot) ─────────────
+  ms2-models:
+    build: ./Ms2-models
+    container_name: ms2-models
+    env_file: .env
+    ports:
+      - "8002:8002"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Ms3: PredLogs (Node.js + Express) ────────────
+  ms3-predlogs:
+    build: ./Ms3-predlogs
+    container_name: ms3-predlogs
+    env_file: .env
+    ports:
+      - "8003:8003"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Ms4: Gateway (Python + FastAPI) ──────────────
+  ms4-gateway:
+    build: ./Ms4-gateway
+    container_name: ms4-gateway
+    env_file: .env
+    ports:
+      - "8004:8004"
+    networks:
+      - mlops-network
+    depends_on:
+      - ms2-models
+      - ms3-predlogs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Ms5: Monitoring (Python + FastAPI + Athena) ───
+  ms5-monitoring:
+    build: ./Ms5-Monitoring
+    container_name: ms5-monitoring
+    env_file: .env
+    ports:
+      - "8005:8005"
+    networks:
+      - mlops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
