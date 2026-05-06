@@ -21,13 +21,8 @@ ATHENA_DB      = os.getenv("ATHENA_DATABASE", "mlops_analytics")
 ATHENA_OUTPUT  = os.getenv("ATHENA_OUTPUT_LOCATION", "s3://mlops-analytics-oswaldoaqm/athena-results/")
 
 def run_query(sql: str, timeout: int = 60) -> list[dict]:
-    """
-    Ejecuta una query en Athena y espera el resultado.
-    Retorna lista de dicts con los resultados.
-    """
     client = get_athena_client()
 
-    # Iniciar query
     response = client.start_query_execution(
         QueryString=sql,
         QueryExecutionContext={"Database": ATHENA_DB},
@@ -36,16 +31,15 @@ def run_query(sql: str, timeout: int = 60) -> list[dict]:
     execution_id = response["QueryExecutionId"]
     logger.info(f"Query iniciada: {execution_id}")
 
-    # Polling hasta que termine
     start = time.time()
     while True:
         status_resp = client.get_query_execution(QueryExecutionId=execution_id)
-        state = status_resp["QueryExecution"]["QueryExecutionStatus"]["State"]
+        state = status_resp["QueryExecution"]["Status"]["State"]
 
         if state == "SUCCEEDED":
             break
         elif state in ("FAILED", "CANCELLED"):
-            reason = status_resp["QueryExecution"]["QueryExecutionStatus"].get("StateChangeReason", "Sin detalle")
+            reason = status_resp["QueryExecution"]["Status"].get("StateChangeReason", "Sin detalle")
             raise RuntimeError(f"Athena query {state}: {reason}")
 
         if time.time() - start > timeout:
@@ -53,14 +47,12 @@ def run_query(sql: str, timeout: int = 60) -> list[dict]:
 
         time.sleep(2)
 
-    # Obtener resultados
     results_resp = client.get_query_results(QueryExecutionId=execution_id)
     rows = results_resp["ResultSet"]["Rows"]
 
     if len(rows) < 2:
         return []
 
-    # Primera fila = headers
     headers = [col.get("VarCharValue", "") for col in rows[0]["Data"]]
     records = []
     for row in rows[1:]:
