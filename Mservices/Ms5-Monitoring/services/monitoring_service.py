@@ -51,7 +51,7 @@ SELECT
     COUNT(*)                                    AS total_peticiones,
     AVG(CAST(p.latencia_ms AS DOUBLE))          AS latencia_promedio
 FROM predlogs p
-WHERE CAST(p.timestamp AS TIMESTAMP) >= date_add('day', -7, current_timestamp)
+WHERE substr(p.timestamp, 1, 10) >= substr(CAST(date_add('day', -7, current_timestamp) AS varchar), 1, 10)
 GROUP BY p.modelo_id, p.modelo_nombre
 ORDER BY total_peticiones DESC
 LIMIT 5
