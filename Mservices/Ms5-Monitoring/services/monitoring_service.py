@@ -10,12 +10,11 @@ from aws.athena_client import run_query
 QUERY_DATA_DRIFT = """
 SELECT
     p.modelo_nombre                                    AS modelo_nombre,
-    DATE_FORMAT(from_iso8601_timestamp(p.timestamp), '%Y-%m') AS mes,
+    substr(p.timestamp, 1, 7)                          AS mes,
     AVG(CAST(p.prediccion_output AS DOUBLE))           AS promedio_prediccion,
     COUNT(*)                                           AS total_predicciones
 FROM predlogs p
-GROUP BY p.modelo_nombre,
-         DATE_FORMAT(from_iso8601_timestamp(p.timestamp), '%Y-%m')
+GROUP BY p.modelo_nombre, substr(p.timestamp, 1, 7)
 ORDER BY mes DESC, modelo_nombre
 LIMIT 100
 """
@@ -52,7 +51,7 @@ SELECT
     COUNT(*)                                    AS total_peticiones,
     AVG(CAST(p.latencia_ms AS DOUBLE))          AS latencia_promedio
 FROM predlogs p
-WHERE from_iso8601_timestamp(p.timestamp) >= date_add('day', -7, current_timestamp)
+WHERE CAST(p.timestamp AS TIMESTAMP) >= date_add('day', -7, current_timestamp)
 GROUP BY p.modelo_id, p.modelo_nombre
 ORDER BY total_peticiones DESC
 LIMIT 5
