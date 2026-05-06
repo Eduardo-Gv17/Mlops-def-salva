@@ -8,9 +8,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/metricas")
@@ -23,40 +25,42 @@ public class MetricaController {
 
     @GetMapping
     @Operation(summary = "Listar métricas paginadas")
-    public Page<Metrica> list(
+    public Page<MetricaDTO> list(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        return metricaService.findAll(page, size);
+            @RequestParam(defaultValue = "10") int size) {
+        Page<Metrica> metricas = metricaService.findAll(page, size);
+        List<MetricaDTO> dtos = metricas.getContent().stream().map(this::toDTO).toList();
+        return new PageImpl<>(dtos, metricas.getPageable(), metricas.getTotalElements());
     }
 
     @GetMapping("/modelo/{modeloId}")
     @Operation(summary = "Métricas de un modelo específico")
-    public Page<Metrica> byModelo(
+    public Page<MetricaDTO> byModelo(
             @PathVariable Long modeloId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        return metricaService.findByModelo(modeloId, page, size);
+            @RequestParam(defaultValue = "10") int size) {
+        Page<Metrica> metricas = metricaService.findByModelo(modeloId, page, size);
+        List<MetricaDTO> dtos = metricas.getContent().stream().map(this::toDTO).toList();
+        return new PageImpl<>(dtos, metricas.getPageable(), metricas.getTotalElements());
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener métrica por ID")
-    public Metrica getById(@PathVariable Long id) {
-        return metricaService.findById(id);
+    public MetricaDTO getById(@PathVariable Long id) {
+        return toDTO(metricaService.findById(id));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Crear métrica")
-    public Metrica create(@Valid @RequestBody MetricaDTO dto) {
-        return metricaService.create(dto);
+    public MetricaDTO create(@Valid @RequestBody MetricaDTO dto) {
+        return toDTO(metricaService.create(dto));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar métrica")
-    public Metrica update(@PathVariable Long id, @Valid @RequestBody MetricaDTO dto) {
-        return metricaService.update(id, dto);
+    public MetricaDTO update(@PathVariable Long id, @Valid @RequestBody MetricaDTO dto) {
+        return toDTO(metricaService.update(id, dto));
     }
 
     @DeleteMapping("/{id}")
@@ -64,5 +68,17 @@ public class MetricaController {
     public ResponseEntity<String> delete(@PathVariable Long id) {
         metricaService.delete(id);
         return ResponseEntity.ok("Métrica " + id + " eliminada");
+    }
+
+    private MetricaDTO toDTO(Metrica m) {
+        MetricaDTO dto = new MetricaDTO();
+        dto.setId(m.getId());
+        dto.setTipoMetrica(m.getTipoMetrica());
+        dto.setValorMetrica(m.getValorMetrica());
+        dto.setDatasetEvaluacion(m.getDatasetEvaluacion());
+        dto.setNotas(m.getNotas());
+        dto.setModeloId(m.getModelo().getId());
+        dto.setCreatedAt(m.getCreatedAt());
+        return dto;
     }
 }
